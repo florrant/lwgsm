@@ -34,6 +34,8 @@
 #include "lwgsm/lwgsm_pbuf.h"
 #include "lwgsm/lwgsm_private.h"
 
+static lwgsm_pbuf_p pbuf_skip(lwgsm_pbuf_p p, size_t off, size_t* new_off);
+
 /* Set size of pbuf structure */
 #define SIZEOF_PBUF_STRUCT LWGSM_MEM_ALIGN(sizeof(lwgsm_pbuf_t))
 #define SET_NEW_LEN(v, len)                                                                                            \

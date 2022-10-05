@@ -56,6 +56,7 @@ size_t lwgsm_pbuf_copy(lwgsm_pbuf_p pbuf, void* data, size_t len, size_t offset)
 
 lwgsmr_t lwgsm_pbuf_cat(lwgsm_pbuf_p head, const lwgsm_pbuf_p tail);
 lwgsmr_t lwgsm_pbuf_chain(lwgsm_pbuf_p head, lwgsm_pbuf_p tail);
+lwgsm_pbuf_p lwgsm_pbuf_unchain(lwgsm_pbuf_p head);
 lwgsmr_t lwgsm_pbuf_ref(lwgsm_pbuf_p pbuf);
 
 uint8_t lwgsm_pbuf_get_at(const lwgsm_pbuf_p pbuf, size_t pos, uint8_t* el);
@@ -66,6 +67,7 @@ size_t lwgsm_pbuf_strfind(const lwgsm_pbuf_p pbuf, const char* str, size_t off);
 
 uint8_t lwgsm_pbuf_advance(lwgsm_pbuf_p pbuf, int len);
 lwgsm_pbuf_p lwgsm_pbuf_skip(lwgsm_pbuf_p pbuf, size_t offset, size_t* new_offset);
+void lwgsm_pbuf_dump(lwgsm_pbuf_p p, uint8_t seq);
 
 void* lwgsm_pbuf_get_linear_addr(const lwgsm_pbuf_p pbuf, size_t offset, size_t* new_len);
 

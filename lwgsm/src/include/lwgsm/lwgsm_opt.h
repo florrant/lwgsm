@@ -372,6 +372,15 @@
 #endif
 
 /**
+ * \brief           Set debug level for AT Command communication
+ *
+ * Possible values are \ref LWGSM_DBG_ON or \ref LWGSM_DBG_OFF
+ */
+#ifndef LWGSM_CFG_DBG_AT
+#define LWGSM_CFG_DBG_AT LWGSM_DBG_OFF
+#endif
+
+/**
  * \brief           Enables `1` or disables `0` echo mode on AT commands
  *                  sent to GSM device.
  *

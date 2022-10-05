@@ -792,9 +792,85 @@ extern const size_t lwgsm_dev_model_map_size;
     (((x) >= '0' && (x) <= '9')                                                                                        \
          ? ((x) - '0')                                                                                                 \
          : (((x) >= 'a' && (x) <= 'f') ? ((x) - 'a' + 10) : (((x) >= 'A' && (x) <= 'F') ? ((x) - 'A' + 10) : 0)))
-#define LWGSM_ISVALIDASCII(x) (((x) >= 32 && (x) <= 126) || (x) == '\r' || (x) == '\n')
+#define LWGSM_ISVALIDASCII(x)       (((x) >= 32 && (x) <= 126) || (x) == '\r' || (x) == '\n')
 
-#define LWGSM_PORT2NUM(port)  ((uint32_t)(port))
+#define LWGSM_PORT2NUM(port)        ((uint32_t)(port))
+
+/* Send data over AT port */
+#define AT_PORT_SEND_STR(str)       lwgsm.ll.send_fn((const void*)(str), (size_t)strlen(str))
+#define AT_PORT_SEND_CONST_STR(str) lwgsm.ll.send_fn((const void*)(str), (size_t)(sizeof(str) - 1))
+#define AT_PORT_SEND_CHR(ch)        lwgsm.ll.send_fn((const void*)(ch), (size_t)1)
+#define AT_PORT_SEND_FLUSH()        lwgsm.ll.send_fn(NULL, 0)
+#define AT_PORT_SEND(d, l)          lwgsm.ll.send_fn((const void*)(d), (size_t)(l))
+#define AT_PORT_SEND_WITH_FLUSH(d, l)                                                                                  \
+    do {                                                                                                               \
+        AT_PORT_SEND((d), (l));                                                                                        \
+        AT_PORT_SEND_FLUSH();                                                                                          \
+    } while (0)
+
+#if !__DOXYGEN__
+
+/* Beginning and end of every AT command */
+#define AT_PORT_SEND_BEGIN_AT()                                                                                        \
+    do {                                                                                                               \
+        AT_PORT_SEND_CONST_STR("AT");                                                                                  \
+    } while (0)
+#define AT_PORT_SEND_END_AT()                                                                                          \
+    do {                                                                                                               \
+        AT_PORT_SEND(CRLF, CRLF_LEN);                                                                                  \
+        AT_PORT_SEND(NULL, 0);                                                                                         \
+    } while (0)
+
+/* Send special characters over AT port with condition */
+#define AT_PORT_SEND_QUOTE_COND(q)                                                                                     \
+    do {                                                                                                               \
+        if ((q)) {                                                                                                     \
+            AT_PORT_SEND_CONST_STR("\"");                                                                              \
+        }                                                                                                              \
+    } while (0)
+#define AT_PORT_SEND_COMMA_COND(c)                                                                                     \
+    do {                                                                                                               \
+        if ((c)) {                                                                                                     \
+            AT_PORT_SEND_CONST_STR(",");                                                                               \
+        }                                                                                                              \
+    } while (0)
+#define AT_PORT_SEND_EQUAL_COND(e)                                                                                     \
+    do {                                                                                                               \
+        if ((e)) {                                                                                                     \
+            AT_PORT_SEND_CONST_STR("=");                                                                               \
+        }                                                                                                              \
+    } while (0)
+
+/* Send special characters */
+#define AT_PORT_SEND_CTRL_Z() AT_PORT_SEND_STR("\x1A")
+#define AT_PORT_SEND_ESC()    AT_PORT_SEND_STR("\x1B")
+#endif /* !__DOXYGEN__ */
+
+#if !__DOXYGEN__
+/**
+ * \brief           Receive character structure to handle full line terminated with `\n` character
+ */
+typedef struct {
+    char data[128]; /*!< Received characters */
+    size_t len;     /*!< Length of valid characters */
+} lwgsm_recv_t;
+
+/* Receive character macros */
+#define RECV_ADD(ch)                                                                                                   \
+    do {                                                                                                               \
+        if (recv_buff.len < (sizeof(recv_buff.data)) - 1) {                                                            \
+            recv_buff.data[recv_buff.len++] = ch;                                                                      \
+            recv_buff.data[recv_buff.len] = 0;                                                                         \
+        }                                                                                                              \
+    } while (0)
+#define RECV_RESET()                                                                                                   \
+    do {                                                                                                               \
+        recv_buff.len = 0;                                                                                             \
+        recv_buff.data[0] = 0;                                                                                         \
+    } while (0)
+#define RECV_LEN()      ((size_t)recv_buff.len)
+#define RECV_IDX(index) recv_buff.data[index]
+#endif /* !__DOXYGEN__ */
 
 const char* lwgsmi_dbg_msg_to_string(lwgsm_cmd_t cmd);
 lwgsmr_t lwgsmi_process(const void* data, size_t len);
@@ -814,6 +890,18 @@ lwgsmr_t lwgsmi_get_sim_info(const uint32_t blocking);
 
 void lwgsmi_reset_everything(uint8_t forced);
 void lwgsmi_process_events_for_timeout_or_error(lwgsm_msg_t* msg, lwgsmr_t err);
+
+//parsing
+void lwgsmi_send_string(const char* str, uint8_t e, uint8_t q, uint8_t c);
+void lwgsmi_send_ip_mac(const void* d, uint8_t is_ip, uint8_t q, uint8_t c);
+void lwgsmi_send_number(uint32_t num, uint8_t q, uint8_t c);
+void lwgsmi_send_port(lwgsm_port_t port, uint8_t q, uint8_t c);
+
+//ip
+lwgsmr_t lwgsmi_process_sub_cmd_ip(lwgsm_msg_t* msg, uint8_t* is_ok, uint16_t* is_error);
+lwgsmr_t lwgsmi_initiate_cmd_ip(lwgsm_msg_t* msg);
+void lwgsmi_process_events_for_timeout_or_error_ip(lwgsm_msg_t* msg, lwgsmr_t err);
+void lwgsmi_reset_everything_ip(uint8_t forced);
 
 /**
  * \}

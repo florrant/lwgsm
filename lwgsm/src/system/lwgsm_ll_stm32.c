@@ -278,10 +278,31 @@ static size_t
 send_data(const void* data, size_t len) {
     const uint8_t* d = data;
 
+#if (((LWGSM_CFG_DBG_AT) & (LWGSM_DBG_ON)) && ((LWGSM_DBG_TYPE_TRACE) & (LWGSM_CFG_DBG_TYPES_ON))                      \
+     && ((LWGSM_DBG_LVL_ALL) >= (LWGSM_CFG_DBG_LVL_MIN)))
+    LWGSM_CFG_DBG_OUT("[LWGSM AT](%02u)>", len);
+#endif
     for (size_t i = 0; i < len; ++i, ++d) {
+#if (((LWGSM_CFG_DBG_AT) & (LWGSM_DBG_ON)) && ((LWGSM_DBG_TYPE_TRACE) & (LWGSM_CFG_DBG_TYPES_ON))                      \
+     && ((LWGSM_DBG_LVL_ALL) >= (LWGSM_CFG_DBG_LVL_MIN)))
+        if ((*d >= 32) && (*d <= 126)) {
+            LWGSM_CFG_DBG_OUT("%c", *d);
+        } else if (*d == 10) {
+            LWGSM_CFG_DBG_OUT("\\n");
+        } else if (*d == 13) {
+            LWGSM_CFG_DBG_OUT("\\r");
+        } else {
+            LWGSM_CFG_DBG_OUT(".");
+        }
+#endif
         LL_USART_TransmitData8(LWGSM_USART, *d);
         while (!LL_USART_IsActiveFlag_TXE(LWGSM_USART)) {}
     }
+
+#if (((LWGSM_CFG_DBG_AT) & (LWGSM_DBG_ON)) && ((LWGSM_DBG_TYPE_TRACE) & (LWGSM_CFG_DBG_TYPES_ON))                      \
+     && ((LWGSM_DBG_LVL_ALL) >= (LWGSM_CFG_DBG_LVL_MIN)))
+    LWGSM_CFG_DBG_OUT("\r\n");
+#endif
     return len;
 }
 

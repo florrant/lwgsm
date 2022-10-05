@@ -85,6 +85,24 @@ lwgsm_input_process(const void* data, size_t len) {
     lwgsm_recv_total_len += len; /* Update total number of received bytes */
     ++lwgsm_recv_calls;          /* Update number of calls */
 
+#if (((LWGSM_CFG_DBG_AT) & (LWGSM_DBG_ON)) && ((LWGSM_DBG_TYPE_TRACE) & (LWGSM_CFG_DBG_TYPES_ON))                      \
+     && ((LWGSM_DBG_LVL_ALL) >= (LWGSM_CFG_DBG_LVL_MIN)))
+    uint8_t* d = (uint8_t*)data;
+    LWGSM_CFG_DBG_OUT("[LWGSM AT](%02u)<", len);
+    for (size_t i = 0; i < len; ++i) {
+        if ((d[i] >= 32) && (d[i] <= 126)) {
+            LWGSM_CFG_DBG_OUT("%c", d[i]);
+        } else if (d[i] == 10) {
+            LWGSM_CFG_DBG_OUT("\\n");
+        } else if (d[i] == 13) {
+            LWGSM_CFG_DBG_OUT("\\r");
+        } else {
+            LWGSM_CFG_DBG_OUT(".");
+        }
+    }
+    LWGSM_CFG_DBG_OUT("\r\n", len);
+#endif
+
     lwgsm_core_lock();
     res = lwgsmi_process(data, len); /* Process input data */
     lwgsm_core_unlock();

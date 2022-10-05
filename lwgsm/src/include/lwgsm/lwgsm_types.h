@@ -61,7 +61,7 @@ extern "C" {
  */
 typedef enum {
     lwgsmOK = 0,       /*!< Function returned OK */
-    lwgsmOKIGNOREMORE, /*!< Function succedded, should continue as \ref lwgsmOK
+    lwgsmOKIGNOREMORE, /*!< Function succeeded, should continue as \ref lwgsmOK
                                                         but ignore sending more data.
                                                         This result is possible on connection data receive callback */
     lwgsmERR,          /*!< Generic error */

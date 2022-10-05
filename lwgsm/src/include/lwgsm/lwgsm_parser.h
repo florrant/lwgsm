@@ -41,11 +41,15 @@ extern "C" {
 #include "lwgsm/lwgsm_types.h"
 
 int32_t lwgsmi_parse_number(const char** str);
+uint32_t lwgsmi_parse_hexnumber(const char** str);
 uint8_t lwgsmi_parse_string(const char** src, char* dst, size_t dst_len, uint8_t trim);
+void lwgsmi_check_and_trim(const char** src);
 uint8_t lwgsmi_parse_ip(const char** src, lwgsm_ip_t* ip);
 uint8_t lwgsmi_parse_mac(const char** src, lwgsm_mac_t* mac);
 
 uint8_t lwgsmi_parse_cpin(const char* str, uint8_t send_evt);
+lwgsm_mem_t lwgsmi_parse_memory(const char** src);
+uint8_t lwgsmi_parse_memories_string(const char** src, uint32_t* mem_dst);
 uint8_t lwgsmi_parse_creg(const char* str, uint8_t skip_first);
 uint8_t lwgsmi_parse_csq(const char* str);
 
@@ -55,9 +59,9 @@ uint8_t lwgsmi_parse_cmgr(const char* str);
 uint8_t lwgsmi_parse_cmgl(const char* str);
 
 uint8_t lwgsmi_parse_at_sdk_version(const char* str, uint32_t* version_out);
-
 uint8_t lwgsmi_parse_cops_scan(uint8_t ch, uint8_t reset);
 uint8_t lwgsmi_parse_cops(const char* str);
+uint8_t lwgsmi_parse_datetime(const char** src, lwgsm_datetime_t* dt);
 uint8_t lwgsmi_parse_clcc(const char* str, uint8_t send_evt);
 
 uint8_t lwgsmi_parse_cpbs(const char* str, uint8_t opt);
