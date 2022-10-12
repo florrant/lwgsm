@@ -64,8 +64,6 @@ const lwgsm_dev_model_map_t lwgsm_dev_model_map[] = {
  */
 const size_t lwgsm_dev_model_map_size = LWGSM_ARRAYSIZE(lwgsm_dev_model_map);
 
-
-
 /**
  * \brief           Send reset sequence event
  * \param[in]       m: Command message

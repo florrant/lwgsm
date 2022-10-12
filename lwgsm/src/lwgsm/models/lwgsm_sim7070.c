@@ -74,7 +74,6 @@ static void lwgsmi_send_conn_error_cb(lwgsm_msg_t* msg, lwgsmr_t error);
         n_cmd = (new_cmd);                                                                                             \
     } while (0)
 
-
 /**
  * \brief           Free connection send data memory
  * \param[in]       m: Send data message type

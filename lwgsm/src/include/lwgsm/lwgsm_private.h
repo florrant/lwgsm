@@ -69,16 +69,18 @@ typedef enum {
     LWGSM_CMD_RESTORE,                /*!< Restore GSM internal settings to default values */
     LWGSM_CMD_UART,
 
+    /* AT commands for GPRS support */
     LWGSM_CMD_CGACT_SET_0,
     LWGSM_CMD_CGACT_SET_1,
     LWGSM_CMD_CGATT_SET_0,
     LWGSM_CMD_CGATT_SET_1,
+    LWGSM_CMD_CGDCONT, /*!< Define PDP context */
+    LWGSM_CMD_CGPADDR, /*!< Show PDP address */
+    LWGSM_CMD_CGREG, /*!< Network registration status */
+    LWGSM_CMD_CGSMS, /*!< Select service for MO SMS messages */
+    LWGSM_CMD_CEREG, /*!< EPS Network Registration Status */
     LWGSM_CMD_NETWORK_ATTACH, /*!< Attach to a network */
     LWGSM_CMD_NETWORK_DETACH, /*!< Detach from network */
-
-    LWGSM_CMD_CIPMUX_SET,
-    LWGSM_CMD_CIPRXGET_SET,
-    LWGSM_CMD_CSTT_SET,
 
     /* AT commands according to the V.25TER */
     LWGSM_CMD_CALL_ENABLE,
@@ -203,38 +205,18 @@ typedef enum {
     LWGSM_CMD_CUSD,     /*!< Unstructured Supplementary Service Data, Execute command */
     LWGSM_CMD_CSSN,     /*!< Supplementary Services Notification */
 
-    LWGSM_CMD_CIPMUX,     /*!< Start Up Multi-IP Connection */
-    LWGSM_CMD_CIPSTART,   /*!< Start Up TCP or UDP Connection */
-    LWGSM_CMD_CIPSEND,    /*!< Send Data Through TCP or UDP Connection */
-    LWGSM_CMD_CIPQSEND,   /*!< Select Data Transmitting Mode */
-    LWGSM_CMD_CIPACK,     /*!< Query Previous Connection Data Transmitting State */
-    LWGSM_CMD_CIPCLOSE,   /*!< Close TCP or UDP Connection */
-    LWGSM_CMD_CIPSHUT,    /*!< Deactivate GPRS PDP Context */
-    LWGSM_CMD_CLPORT,     /*!< Set Local Port */
-    LWGSM_CMD_CSTT,       /*!< Start Task and Set APN, username, password */
-    LWGSM_CMD_CIICR,      /*!< Bring Up Wireless Connection with GPRS or CSD */
-    LWGSM_CMD_CIFSR,      /*!< Get Local IP Address */
-    LWGSM_CMD_CIPSTATUS,  /*!< Query Current Connection Status */
-    LWGSM_CMD_CDNSCFG,    /*!< Configure Domain Name Server */
-    LWGSM_CMD_CDNSGIP,    /*!< Query the IP Address of Given Domain Name */
-    LWGSM_CMD_CIPHEAD,    /*!< Add an IP Head at the Beginning of a Package Received */
-    LWGSM_CMD_CIPATS,     /*!< Set Auto Sending Timer */
-    LWGSM_CMD_CIPSPRT,    /*!< Set Prompt of greater than sign When Module Sends Data */
-    LWGSM_CMD_CIPSERVER,  /*!< Configure Module as Server */
-    LWGSM_CMD_CIPCSGP,    /*!< Set CSD or GPRS for Connection Mode */
-    LWGSM_CMD_CIPSRIP,    /*!< Show Remote IP Address and Port When Received Data */
-    LWGSM_CMD_CIPDPDP,    /*!< Set Whether to Check State of GPRS Network Timing */
-    LWGSM_CMD_CIPMODE,    /*!< Select TCPIP Application Mode */
-    LWGSM_CMD_CIPCCFG,    /*!< Configure Transparent Transfer Mode */
-    LWGSM_CMD_CIPSHOWTP,  /*!< Display Transfer Protocol in IP Head When Received Data */
-    LWGSM_CMD_CIPUDPMODE, /*!< UDP Extended Mode */
-    LWGSM_CMD_CIPRXGET,   /*!< Get Data from Network Manually */
-    LWGSM_CMD_CIPSCONT,   /*!< Save TCPIP Application Context */
-    LWGSM_CMD_CIPRDTIMER, /*!< Set Remote Delay Timer */
-    LWGSM_CMD_CIPSGTXT,   /*!< Select GPRS PDP context */
-    LWGSM_CMD_CIPTKA,     /*!< Set TCP Keepalive Parameters */
-    LWGSM_CMD_CIPSSL,     /*!< Connection SSL function */
+    /* AT commands for TCP/IP stack */
+    LWGSM_CMD_CACID,    /*!< Set TCP/UDP identifier */
+    LWGSM_CMD_CASSLCFG, /*!< Set SSL certificate and timeout parameters */
+    LWGSM_CMD_CAOPEN,   /*!< Open a TCP/UDP connection */
+    LWGSM_CMD_CASERVER, /*!< Open a TCP/UDP server */
+    LWGSM_CMD_CASEND,   /*!< Send data via an established connection */
+    LWGSM_CMD_CARECV,   /*!< Receive data via an established connection */
+    LWGSM_CMD_CACLOSE,  /*!< Close TCP or UDP Connection  */
+    LWGSM_CMD_CACFG,    /*!< Configure transparent transmission parameters*/
+    LWGSM_CMD_CASWITCH, /*!< Switch to transparent transport mode */
 
+    /* AT commands according to 3GPP TS 27.005 */
     LWGSM_CMD_SMS_ENABLE,
     LWGSM_CMD_CMGD,         /*!< Delete SMS Message */
     LWGSM_CMD_CMGF,         /*!< Select SMS Message Format */
