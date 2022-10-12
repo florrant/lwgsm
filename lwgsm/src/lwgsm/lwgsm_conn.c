@@ -124,7 +124,7 @@ conn_send(lwgsm_conn_p conn, const lwgsm_ip_t* const ip, lwgsm_port_t port, cons
     CONN_CHECK_CLOSED_IN_CLOSING(conn); /* Check if we can continue */
 
     LWGSM_MSG_VAR_ALLOC(msg, blocking);
-    LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_CIPSEND;
+    LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_CASEND;
 
     LWGSM_MSG_VAR_REF(msg).msg.conn_send.conn = conn;
     LWGSM_MSG_VAR_REF(msg).msg.conn_send.data = data;
@@ -195,8 +195,8 @@ lwgsm_conn_start(lwgsm_conn_p* conn, lwgsm_conn_type_t type, const char* const h
     LWGSM_ASSERT(conn_evt_fn != NULL);
 
     LWGSM_MSG_VAR_ALLOC(msg, blocking);
-    LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_CIPSTART;
-    LWGSM_MSG_VAR_REF(msg).cmd = LWGSM_CMD_CIPSTATUS;
+    LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_CAOPEN;
+    //LWGSM_MSG_VAR_REF(msg).cmd = NULL;
     LWGSM_MSG_VAR_REF(msg).msg.conn_start.num = LWGSM_CFG_MAX_CONNS; /* Set maximal value as invalid number */
     LWGSM_MSG_VAR_REF(msg).msg.conn_start.conn = conn;
     LWGSM_MSG_VAR_REF(msg).msg.conn_start.type = type;
@@ -225,7 +225,7 @@ lwgsm_conn_close(lwgsm_conn_p conn, const uint32_t blocking) {
 
     /* Proceed with close event at this point! */
     LWGSM_MSG_VAR_ALLOC(msg, blocking);
-    LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_CIPCLOSE;
+    LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_CACLOSE;
     LWGSM_MSG_VAR_REF(msg).msg.conn_close.conn = conn;
     LWGSM_MSG_VAR_REF(msg).msg.conn_close.val_id = lwgsmi_conn_get_val_id(conn);
 
@@ -358,12 +358,14 @@ lwgsm_conn_get_arg(lwgsm_conn_p conn) {
  */
 lwgsmr_t
 lwgsm_get_conns_status(const uint32_t blocking) {
-    LWGSM_MSG_VAR_DEFINE(msg);
+    //LWGSM_MSG_VAR_DEFINE(msg);
 
-    LWGSM_MSG_VAR_ALLOC(msg, blocking);
-    LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_CIPSTATUS;
+    //LWGSM_MSG_VAR_ALLOC(msg, blocking);
+    //LWGSM_MSG_VAR_REF(msg).cmd_def = NULL;
 
-    return lwgsmi_send_msg_to_producer_mbox(&LWGSM_MSG_VAR_REF(msg), lwgsmi_initiate_cmd, 1000);
+    //return lwgsmi_send_msg_to_producer_mbox(&LWGSM_MSG_VAR_REF(msg), lwgsmi_initiate_cmd, 1000);
+    //TODO: Implement a way to get status
+    return lwgsmOK;
 }
 
 /**

@@ -51,6 +51,7 @@
  **********************/
 static void reset_connections(uint8_t forced);
 static void lwgsmi_send_conn_error_cb(lwgsm_msg_t* msg, lwgsmr_t error);
+static void lwgsmi_process_cipsend_response(lwgsm_recv_t* rcv, uint8_t* is_ok, uint16_t* is_error);
 
 /**********************
  *  STATIC VARIABLES
@@ -266,7 +267,7 @@ lwgsmi_tcpip_process_data_sent(uint8_t sent) {
  * \param[in,out]   is_ok: Pointer to current ok status
  * \param[in,out]   is_error: Pointer to current error status
  */
-void
+static void
 lwgsmi_process_cipsend_response(lwgsm_recv_t* rcv, uint8_t* is_ok, uint16_t* is_error) {
     if (lwgsm.msg->msg.conn_send.wait_send_ok_err) {
         if (LWGSM_CHARISNUM(rcv->data[0]) && rcv->data[1] == ',') {
@@ -453,6 +454,45 @@ lwgsmi_initiate_cmd_ip(lwgsm_msg_t* msg) {
             AT_PORT_SEND_END_AT();
             break;
         }
+        case LWGSM_CMD_CIPMUX_SET: {
+            AT_PORT_SEND_BEGIN_AT();
+            AT_PORT_SEND_CONST_STR("+CIPMUX=1");
+            AT_PORT_SEND_END_AT();
+            break;
+        }
+        case LWGSM_CMD_CIPRXGET_SET: {
+            AT_PORT_SEND_BEGIN_AT();
+            AT_PORT_SEND_CONST_STR("+CIPRXGET=0");
+            AT_PORT_SEND_END_AT();
+            break;
+        }
+        case LWGSM_CMD_CSTT_SET: {
+            AT_PORT_SEND_BEGIN_AT();
+            AT_PORT_SEND_CONST_STR("+CSTT=");
+            lwgsmi_send_string(msg->msg.network_attach.apn, 1, 1, 0);
+            lwgsmi_send_string(msg->msg.network_attach.user, 1, 1, 1);
+            lwgsmi_send_string(msg->msg.network_attach.pass, 1, 1, 1);
+            AT_PORT_SEND_END_AT();
+            break;
+        }
+        case LWGSM_CMD_CIICR: {
+            AT_PORT_SEND_BEGIN_AT();
+            AT_PORT_SEND_CONST_STR("+CIICR");
+            AT_PORT_SEND_END_AT();
+            break;
+        }
+        case LWGSM_CMD_CIFSR: {
+            AT_PORT_SEND_BEGIN_AT();
+            AT_PORT_SEND_CONST_STR("+CIFSR");
+            AT_PORT_SEND_END_AT();
+            break;
+        }
+        case LWGSM_CMD_CIPSHUT: { /* Shut down network connection and put to reset state */
+            AT_PORT_SEND_BEGIN_AT();
+            AT_PORT_SEND_CONST_STR("+CIPSHUT");
+            AT_PORT_SEND_END_AT();
+            break;
+        }
         default:
             return lwgsmERR; /* Invalid command */
     }
@@ -532,35 +572,151 @@ lwgsmi_process_sub_cmd_ip(lwgsm_msg_t* msg, uint8_t* is_ok, uint16_t* is_error) 
     return lwgsmOK;
 }
 
+void
+lwgsmi_parse_received_ip(lwgsm_recv_t* rcv, uint8_t* p_is_ok, uint16_t* p_is_error) {
+
+#define is_ok    (*p_is_ok)
+#define is_errpr (*p_is_error)
+
+    /* Scan received strings which start with '+' */
+    if (rcv->data[0] == '+') {
+        uint8_t err;
+        if (!strncmp(rcv->data, "+RECEIVE", 8)) {
+            err = lwgsmi_parse_ipd(rcv->data); /* Parse IPD */ /* LWGSM_CFG_CONN */
+        }
+        return (err == 1) ? lwgsmOK : lwgsmERR;
+        /* Messages not starting with '+' sign */
+    } else {
+        if (LWGSM_CHARISNUM(rcv->data[0]) && rcv->data[1] == ',' && rcv->data[2] == ' '
+            && (!strncmp(&rcv->data[3], "CLOSE OK" CRLF, 8 + CRLF_LEN)
+                || !strncmp(&rcv->data[3], "CLOSED" CRLF, 6 + CRLF_LEN))) {
+            uint8_t forced = 0, num;
+
+            num = LWGSM_CHARTONUM(rcv->data[0]); /* Get connection number */
+            if (CMD_IS_CUR(LWGSM_CMD_CIPCLOSE) && lwgsm.msg->msg.conn_close.conn->num == num) {
+                forced = 1;
+                is_ok = 1; /* If forced and connection is closed, command is OK */
+            }
+
+            /* Manually stop send command? */
+            if (CMD_IS_CUR(LWGSM_CMD_CIPSEND) && lwgsm.msg->msg.conn_send.conn->num == num) {
+                /*
+                 * If active command is CIPSEND and CLOSED event received,
+                 * manually set error and process usual "ERROR" event on senddata
+                 */
+                is_error = 1; /* This is an error in response */
+                lwgsmi_process_cipsend_response(rcv, &is_ok, &is_error);
+            }
+            lwgsmi_conn_closed_process(num, forced); /* Connection closed, process */
+        } else if (CMD_IS_CUR(LWGSM_CMD_CIFSR) && LWGSM_CHARISNUM(rcv->data[0])) {
+            const char* tmp = rcv->data;
+            lwgsmi_parse_ip(&tmp, &lwgsm.m.network.ip_addr); /* Parse IP address */
+
+            is_ok = 1; /* Manually set OK flag as we don't expect OK in CIFSR command */
+        }
+    }
+
+    /* Check general responses for active commands */
+    if (lwgsm.msg != NULL) {
+        if (CMD_IS_CUR(LWGSM_CMD_CIPSTATUS)) {
+            /* For CIPSTATUS, OK is returned before important data */
+            if (is_ok) {
+                is_ok = 0;
+            }
+            /* Check if connection data received */
+            if (rcv->len > 3) {
+                uint8_t continueScan = 0, processed = 0;
+                if (rcv->data[0] == 'C' && rcv->data[1] == ':' && rcv->data[2] == ' ') {
+                    processed = 1;
+                    lwgsmi_parse_cipstatus_conn(rcv->data, 1, &continueScan);
+
+                    if (lwgsm.m.active_conns_cur_parse_num == (LWGSM_CFG_MAX_CONNS - 1)) {
+                        is_ok = 1;
+                    }
+                } else if (!strncmp(rcv->data, "STATE:", 6)) {
+                    processed = 1;
+                    lwgsmi_parse_cipstatus_conn(rcv->data, 0, &continueScan);
+                }
+
+                /* Check if we shall stop processing at this stage */
+                if (processed && !continueScan) {
+                    is_ok = 1;
+                }
+            }
+        } else if (CMD_IS_CUR(LWGSM_CMD_CIPSTART)) {
+            /* For CIPSTART, OK is returned before important data */
+            if (is_ok) {
+                is_ok = 0;
+            }
+
+            /* Wait here for CONNECT status before we cancel connection */
+            if (LWGSM_CHARISNUM(rcv->data[0]) && rcv->data[1] == ',' && rcv->data[2] == ' ') {
+                uint8_t num = LWGSM_CHARTONUM(rcv->data[0]);
+                if (num < LWGSM_CFG_MAX_CONNS) {
+                    uint8_t id;
+                    lwgsm_conn_t* conn = &lwgsm.m.conns[num]; /* Get connection handle */
+
+                    if (!strncmp(&rcv->data[3], "CONNECT OK" CRLF, 10 + CRLF_LEN)) {
+                        id = conn->val_id;
+                        LWGSM_MEMSET(conn, 0x00, sizeof(*conn)); /* Reset connection parameters */
+                        conn->num = num;
+                        conn->status.f.active = 1;
+                        conn->val_id = ++id; /* Set new validation ID */
+
+                        /* Set connection parameters */
+                        conn->status.f.client = 1;
+                        conn->evt_func = lwgsm.msg->msg.conn_start.evt_func;
+                        conn->arg = lwgsm.msg->msg.conn_start.arg;
+
+                        /* Set status */
+                        lwgsm.msg->msg.conn_start.conn_res = LWGSM_CONN_CONNECT_OK;
+                        is_ok = 1;
+                    } else if (!strncmp(&rcv->data[3], "CONNECT FAIL" CRLF, 12 + CRLF_LEN)) {
+                        lwgsm.msg->msg.conn_start.conn_res = LWGSM_CONN_CONNECT_ERROR;
+                        is_error = 1;
+                    } else if (!strncmp(&rcv->data[3], "ALREADY CONNECT" CRLF, 15 + CRLF_LEN)) {
+                        lwgsm.msg->msg.conn_start.conn_res = LWGSM_CONN_CONNECT_ALREADY;
+                        is_error = 1;
+                    }
+                }
+            }
+        } else if (CMD_IS_CUR(LWGSM_CMD_CIPSEND)) {
+            if (is_ok) {
+                is_ok = 0;
+            }
+            lwgsmi_process_cipsend_response(rcv, &is_ok, &is_error);
+        }
+    }
+}
+
 /**********************
  *   STATIC FUNCTIONS
  **********************/
 #if LWGSM_CFG_CONN || __DOXYGEN__
 
-/**
+    /**
  * \brief           Reset all connections
  * \note            Used to notify upper layer stack to close everything and reset the memory if necessary
  * \param[in]       forced: Flag indicating reset was forced by user
  */
-static void
-reset_connections(uint8_t forced) {
-    lwgsm.evt.type = LWGSM_EVT_CONN_CLOSE;
-    lwgsm.evt.evt.conn_active_close.forced = forced;
-    lwgsm.evt.evt.conn_active_close.res = lwgsmOK;
+    static void reset_connections(uint8_t forced) {
+        lwgsm.evt.type = LWGSM_EVT_CONN_CLOSE;
+        lwgsm.evt.evt.conn_active_close.forced = forced;
+        lwgsm.evt.evt.conn_active_close.res = lwgsmOK;
 
-    for (size_t i = 0; i < LWGSM_CFG_MAX_CONNS; ++i) { /* Check all connections */
-        if (lwgsm.m.conns[i].status.f.active) {
-            lwgsm.m.conns[i].status.f.active = 0;
+        for (size_t i = 0; i < LWGSM_CFG_MAX_CONNS; ++i) { /* Check all connections */
+            if (lwgsm.m.conns[i].status.f.active) {
+                lwgsm.m.conns[i].status.f.active = 0;
 
-            lwgsm.evt.evt.conn_active_close.conn = &lwgsm.m.conns[i];
-            lwgsm.evt.evt.conn_active_close.client = lwgsm.m.conns[i].status.f.client;
-            lwgsmi_send_conn_cb(&lwgsm.m.conns[i], NULL); /* Send callback function */
+                lwgsm.evt.evt.conn_active_close.conn = &lwgsm.m.conns[i];
+                lwgsm.evt.evt.conn_active_close.client = lwgsm.m.conns[i].status.f.client;
+                lwgsmi_send_conn_cb(&lwgsm.m.conns[i], NULL); /* Send callback function */
+            }
         }
     }
-}
 
 #endif /* LWGSM_CFG_CONN || __DOXYGEN__ */
 
-/**********************
+    /**********************
  *   ERROR ASSERT
 **********************/

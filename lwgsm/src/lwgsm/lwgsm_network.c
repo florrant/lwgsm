@@ -54,9 +54,6 @@ lwgsm_network_attach(const char* apn, const char* user, const char* pass, const 
     LWGSM_MSG_VAR_ALLOC(msg, blocking);
     LWGSM_MSG_VAR_SET_EVT(msg, evt_fn, evt_arg);
     LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_NETWORK_ATTACH;
-#if LWGSM_CFG_CONN
-    LWGSM_MSG_VAR_REF(msg).cmd = LWGSM_CMD_CIPSTATUS;
-#endif /* LWGSM_CFG_CONN */
     LWGSM_MSG_VAR_REF(msg).msg.network_attach.apn = apn;
     LWGSM_MSG_VAR_REF(msg).msg.network_attach.user = user;
     LWGSM_MSG_VAR_REF(msg).msg.network_attach.pass = pass;
@@ -78,9 +75,6 @@ lwgsm_network_detach(const lwgsm_api_cmd_evt_fn evt_fn, void* const evt_arg, con
     LWGSM_MSG_VAR_ALLOC(msg, blocking);
     LWGSM_MSG_VAR_SET_EVT(msg, evt_fn, evt_arg);
     LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_NETWORK_DETACH;
-#if LWGSM_CFG_CONN
-    /* LWGSM_MSG_VAR_REF(msg).cmd = LWGSM_CMD_CIPSTATUS; */
-#endif /* LWGSM_CFG_CONN */
 
     return lwgsmi_send_msg_to_producer_mbox(&LWGSM_MSG_VAR_REF(msg), lwgsmi_initiate_cmd, 60000);
 }
@@ -98,7 +92,7 @@ lwgsm_network_check_status(const lwgsm_api_cmd_evt_fn evt_fn, void* const evt_ar
 
     LWGSM_MSG_VAR_ALLOC(msg, blocking);
     LWGSM_MSG_VAR_SET_EVT(msg, evt_fn, evt_arg);
-    LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_CIPSTATUS;
+    LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_CGREG;
 
     return lwgsmi_send_msg_to_producer_mbox(&LWGSM_MSG_VAR_REF(msg), lwgsmi_initiate_cmd, 60000);
 }

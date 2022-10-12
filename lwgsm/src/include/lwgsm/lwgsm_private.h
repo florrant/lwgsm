@@ -74,11 +74,11 @@ typedef enum {
     LWGSM_CMD_CGACT_SET_1,
     LWGSM_CMD_CGATT_SET_0,
     LWGSM_CMD_CGATT_SET_1,
-    LWGSM_CMD_CGDCONT, /*!< Define PDP context */
-    LWGSM_CMD_CGPADDR, /*!< Show PDP address */
-    LWGSM_CMD_CGREG, /*!< Network registration status */
-    LWGSM_CMD_CGSMS, /*!< Select service for MO SMS messages */
-    LWGSM_CMD_CEREG, /*!< EPS Network Registration Status */
+    LWGSM_CMD_CGDCONT,        /*!< Define PDP context */
+    LWGSM_CMD_CGPADDR,        /*!< Show PDP address */
+    LWGSM_CMD_CGREG,          /*!< Network registration status */
+    LWGSM_CMD_CGSMS,          /*!< Select service for MO SMS messages */
+    LWGSM_CMD_CEREG,          /*!< EPS Network Registration Status */
     LWGSM_CMD_NETWORK_ATTACH, /*!< Attach to a network */
     LWGSM_CMD_NETWORK_DETACH, /*!< Detach from network */
 
@@ -884,6 +884,7 @@ lwgsmr_t lwgsmi_process_sub_cmd_ip(lwgsm_msg_t* msg, uint8_t* is_ok, uint16_t* i
 lwgsmr_t lwgsmi_initiate_cmd_ip(lwgsm_msg_t* msg);
 void lwgsmi_process_events_for_timeout_or_error_ip(lwgsm_msg_t* msg, lwgsmr_t err);
 void lwgsmi_reset_everything_ip(uint8_t forced);
+void lwgsmi_parse_received_ip(lwgsm_recv_t* rcv, uint8_t* p_is_ok, uint16_t* p_is_error);
 
 /**
  * \}

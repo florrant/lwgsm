@@ -408,9 +408,16 @@ lwgsmi_parse_received(lwgsm_recv_t* rcv) {
             is_error = rcv->data[0] == '+' && !strncmp(rcv->data, "+CMS ERROR", 10); /* First check +CME coded errors */
             if (!is_error) {
                 is_error = !strcmp(rcv->data, "ERROR" CRLF) || !strcmp(rcv->data, "FAIL" CRLF);
+                if (!is_error) {
+                    is_ok = rcv->data[0] == 'S' && !strncmp(rcv->data, "SHUT OK" CRLF, 7 + CRLF_LEN ;
+                }
             }
         }
     }
+
+#if LWGSM_CFG_CONN
+    lwgsmi_parse_received_ip(rcv, &is_ok, &is_error);
+#endif /* LWGSM_CFG_CONN */
 
     /* Scan received strings which start with '+' */
     if (rcv->data[0] == '+') {
@@ -419,12 +426,8 @@ lwgsmi_parse_received(lwgsm_recv_t* rcv) {
 #if LWGSM_CFG_NETWORK
         } else if (!strncmp(rcv->data, "+PDP: DEACT", 11)) {
             /* PDP has been deactivated */
-            lwgsm_network_check_status(NULL, NULL, 0); /* Update status */
-#endif                                                 /* LWGSM_CFG_NETWORK */
-#if LWGSM_CFG_CONN
-        } else if (!strncmp(rcv->data, "+RECEIVE", 8)) {
-            lwgsmi_parse_ipd(rcv->data);                                            /* Parse IPD */
-#endif                                                                              /* LWGSM_CFG_CONN */
+            lwgsm_network_check_status(NULL, NULL, 0);                              /* Update status */
+#endif                                                                              /* LWGSM_CFG_NETWORK */
         } else if (!strncmp(rcv->data, "+CREG", 5)) {                               /* Check for +CREG indication */
             lwgsmi_parse_creg(rcv->data, LWGSM_U8(CMD_IS_CUR(LWGSM_CMD_CREG_GET))); /* Parse +CREG response */
         } else if (!strncmp(rcv->data, "+CPIN", 5)) { /* Check for +CPIN indication for SIM */
@@ -475,31 +478,7 @@ lwgsmi_parse_received(lwgsm_recv_t* rcv) {
 
         /* Messages not starting with '+' sign */
     } else {
-        if (rcv->data[0] == 'S' && !strncmp(rcv->data, "SHUT OK" CRLF, 7 + CRLF_LEN)) {
-            is_ok = 1;
-#if LWGSM_CFG_CONN
-        } else if (LWGSM_CHARISNUM(rcv->data[0]) && rcv->data[1] == ',' && rcv->data[2] == ' '
-                   && (!strncmp(&rcv->data[3], "CLOSE OK" CRLF, 8 + CRLF_LEN)
-                       || !strncmp(&rcv->data[3], "CLOSED" CRLF, 6 + CRLF_LEN))) {
-            uint8_t forced = 0, num;
-
-            num = LWGSM_CHARTONUM(rcv->data[0]); /* Get connection number */
-            if (CMD_IS_CUR(LWGSM_CMD_CIPCLOSE) && lwgsm.msg->msg.conn_close.conn->num == num) {
-                forced = 1;
-                is_ok = 1; /* If forced and connection is closed, command is OK */
-            }
-
-            /* Manually stop send command? */
-            if (CMD_IS_CUR(LWGSM_CMD_CIPSEND) && lwgsm.msg->msg.conn_send.conn->num == num) {
-                /*
-                 * If active command is CIPSEND and CLOSED event received,
-                 * manually set error and process usual "ERROR" event on senddata
-                 */
-                is_error = 1; /* This is an error in response */
-                lwgsmi_process_cipsend_response(rcv, &is_ok, &is_error);
-            }
-            lwgsmi_conn_closed_process(num, forced); /* Connection closed, process */
-#endif                                               /* LWGSM_CFG_CONN */
+        if (0) {
 #if LWGSM_CFG_CALL
         } else if (rcv->data[0] == 'C' && !strncmp(rcv->data, "Call Ready" CRLF, 10 + CRLF_LEN)) {
             lwgsm.m.call.ready = 1;
@@ -560,11 +539,6 @@ lwgsmi_parse_received(lwgsm_recv_t* rcv) {
                     lwgsm.msg->msg.device_info.str[tocopy - 1] = 0;
                 }
             }
-        } else if (CMD_IS_CUR(LWGSM_CMD_CIFSR) && LWGSM_CHARISNUM(rcv->data[0])) {
-            const char* tmp = rcv->data;
-            lwgsmi_parse_ip(&tmp, &lwgsm.m.network.ip_addr); /* Parse IP address */
-
-            is_ok = 1; /* Manually set OK flag as we don't expect OK in CIFSR command */
         }
     }
 
@@ -585,75 +559,6 @@ lwgsmi_parse_received(lwgsm_recv_t* rcv) {
         } else if (CMD_IS_CUR(LWGSM_CMD_CMGS) && is_ok) {
             /* At this point we have to wait for "> " to send data */
 #endif /* LWGSM_CFG_SMS */
-#if LWGSM_CFG_CONN
-        } else if (CMD_IS_CUR(LWGSM_CMD_CIPSTATUS)) {
-            /* For CIPSTATUS, OK is returned before important data */
-            if (is_ok) {
-                is_ok = 0;
-            }
-            /* Check if connection data received */
-            if (rcv->len > 3) {
-                uint8_t continueScan = 0, processed = 0;
-                if (rcv->data[0] == 'C' && rcv->data[1] == ':' && rcv->data[2] == ' ') {
-                    processed = 1;
-                    lwgsmi_parse_cipstatus_conn(rcv->data, 1, &continueScan);
-
-                    if (lwgsm.m.active_conns_cur_parse_num == (LWGSM_CFG_MAX_CONNS - 1)) {
-                        is_ok = 1;
-                    }
-                } else if (!strncmp(rcv->data, "STATE:", 6)) {
-                    processed = 1;
-                    lwgsmi_parse_cipstatus_conn(rcv->data, 0, &continueScan);
-                }
-
-                /* Check if we shall stop processing at this stage */
-                if (processed && !continueScan) {
-                    is_ok = 1;
-                }
-            }
-        } else if (CMD_IS_CUR(LWGSM_CMD_CIPSTART)) {
-            /* For CIPSTART, OK is returned before important data */
-            if (is_ok) {
-                is_ok = 0;
-            }
-
-            /* Wait here for CONNECT status before we cancel connection */
-            if (LWGSM_CHARISNUM(rcv->data[0]) && rcv->data[1] == ',' && rcv->data[2] == ' ') {
-                uint8_t num = LWGSM_CHARTONUM(rcv->data[0]);
-                if (num < LWGSM_CFG_MAX_CONNS) {
-                    uint8_t id;
-                    lwgsm_conn_t* conn = &lwgsm.m.conns[num]; /* Get connection handle */
-
-                    if (!strncmp(&rcv->data[3], "CONNECT OK" CRLF, 10 + CRLF_LEN)) {
-                        id = conn->val_id;
-                        LWGSM_MEMSET(conn, 0x00, sizeof(*conn)); /* Reset connection parameters */
-                        conn->num = num;
-                        conn->status.f.active = 1;
-                        conn->val_id = ++id; /* Set new validation ID */
-
-                        /* Set connection parameters */
-                        conn->status.f.client = 1;
-                        conn->evt_func = lwgsm.msg->msg.conn_start.evt_func;
-                        conn->arg = lwgsm.msg->msg.conn_start.arg;
-
-                        /* Set status */
-                        lwgsm.msg->msg.conn_start.conn_res = LWGSM_CONN_CONNECT_OK;
-                        is_ok = 1;
-                    } else if (!strncmp(&rcv->data[3], "CONNECT FAIL" CRLF, 12 + CRLF_LEN)) {
-                        lwgsm.msg->msg.conn_start.conn_res = LWGSM_CONN_CONNECT_ERROR;
-                        is_error = 1;
-                    } else if (!strncmp(&rcv->data[3], "ALREADY CONNECT" CRLF, 15 + CRLF_LEN)) {
-                        lwgsm.msg->msg.conn_start.conn_res = LWGSM_CONN_CONNECT_ALREADY;
-                        is_error = 1;
-                    }
-                }
-            }
-        } else if (CMD_IS_CUR(LWGSM_CMD_CIPSEND)) {
-            if (is_ok) {
-                is_ok = 0;
-            }
-            lwgsmi_process_cipsend_response(rcv, &is_ok, &is_error);
-#endif /* LWGSM_CFG_CONN */
 #if LWGSM_CFG_USSD
         } else if (CMD_IS_CUR(LWGSM_CMD_CUSD)) {
             /* OK is returned before +CUSD */
@@ -1055,7 +960,7 @@ lwgsmi_process_sub_cmd(lwgsm_msg_t* msg, uint8_t* is_ok, uint16_t* is_error) {
     if (0) {
 #if LWGSM_CFG_CONN
     }
-    if (lwgsmOK == lwgsmi_process_sub_cmd_ip(msg, is_ok, is_error)) {
+    if (lwgsmCONT != lwgsmi_process_sub_cmd_ip(msg, is_ok, is_error)) {
 #endif /* LWGSM_CFG_CONN */
     } else if (CMD_IS_DEF(LWGSM_CMD_RESET)) {
         switch (CMD_GET_CUR()) { /* Check current command */
@@ -1306,27 +1211,27 @@ lwgsmi_process_sub_cmd(lwgsm_msg_t* msg, uint8_t* is_ok, uint16_t* is_error) {
             case 3:
                 SET_NEW_CMD(LWGSM_CMD_CGATT_SET_1);
                 break;
-            case 4:
-                SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CIPSHUT);
-                break;
-            case 5:
-                SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CIPMUX_SET);
-                break;
-            case 6:
-                SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CIPRXGET_SET);
-                break;
-            case 7:
-                SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CSTT_SET);
-                break;
-            case 8:
-                SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CIICR);
-                break;
-            case 9:
-                SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CIFSR);
-                break;
-            case 10:
-                SET_NEW_CMD(LWGSM_CMD_CIPSTATUS);
-                break;
+            // case 4:
+            //     SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CIPSHUT);
+            //     break;
+            // case 5:
+            //     SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CIPMUX_SET);
+            //     break;
+            // case 6:
+            //     SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CIPRXGET_SET);
+            //     break;
+            // case 7:
+            //     SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CSTT_SET);
+            //     break;
+            // case 8:
+            //     SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CIICR);
+            //     break;
+            // case 9:
+            //     SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CIFSR);
+            //     break;
+            // case 10:
+            //     SET_NEW_CMD(LWGSM_CMD_CIPSTATUS);
+            //     break;
             default:
                 break;
         }
@@ -1338,11 +1243,11 @@ lwgsmi_process_sub_cmd(lwgsm_msg_t* msg, uint8_t* is_ok, uint16_t* is_error) {
             case 1:
                 SET_NEW_CMD(LWGSM_CMD_CGACT_SET_0);
                 break;
-#if LWGSM_CFG_CONN
-            case 2:
-                SET_NEW_CMD(LWGSM_CMD_CIPSTATUS);
-                break;
-#endif /* LWGSM_CFG_CONN */
+// #if LWGSM_CFG_CONN
+//             case 2:
+//                 SET_NEW_CMD(LWGSM_CMD_CIPSTATUS);
+//                 break;
+// #endif /* LWGSM_CFG_CONN */
             default:
                 break;
         }
@@ -1572,12 +1477,6 @@ lwgsmi_initiate_cmd(lwgsm_msg_t* msg) {
             AT_PORT_SEND_END_AT();
             break;
         }
-        case LWGSM_CMD_CIPSHUT: { /* Shut down network connection and put to reset state */
-            AT_PORT_SEND_BEGIN_AT();
-            AT_PORT_SEND_CONST_STR("+CIPSHUT");
-            AT_PORT_SEND_END_AT();
-            break;
-        }
 #if LWGSM_CFG_SMS
         case LWGSM_CMD_CMGF: { /* Select SMS message format */
             AT_PORT_SEND_BEGIN_AT();
@@ -1803,39 +1702,6 @@ lwgsmi_initiate_cmd(lwgsm_msg_t* msg) {
         case LWGSM_CMD_CGATT_SET_1: {
             AT_PORT_SEND_BEGIN_AT();
             AT_PORT_SEND_CONST_STR("+CGATT=1");
-            AT_PORT_SEND_END_AT();
-            break;
-        }
-        case LWGSM_CMD_CIPMUX_SET: {
-            AT_PORT_SEND_BEGIN_AT();
-            AT_PORT_SEND_CONST_STR("+CIPMUX=1");
-            AT_PORT_SEND_END_AT();
-            break;
-        }
-        case LWGSM_CMD_CIPRXGET_SET: {
-            AT_PORT_SEND_BEGIN_AT();
-            AT_PORT_SEND_CONST_STR("+CIPRXGET=0");
-            AT_PORT_SEND_END_AT();
-            break;
-        }
-        case LWGSM_CMD_CSTT_SET: {
-            AT_PORT_SEND_BEGIN_AT();
-            AT_PORT_SEND_CONST_STR("+CSTT=");
-            lwgsmi_send_string(msg->msg.network_attach.apn, 1, 1, 0);
-            lwgsmi_send_string(msg->msg.network_attach.user, 1, 1, 1);
-            lwgsmi_send_string(msg->msg.network_attach.pass, 1, 1, 1);
-            AT_PORT_SEND_END_AT();
-            break;
-        }
-        case LWGSM_CMD_CIICR: {
-            AT_PORT_SEND_BEGIN_AT();
-            AT_PORT_SEND_CONST_STR("+CIICR");
-            AT_PORT_SEND_END_AT();
-            break;
-        }
-        case LWGSM_CMD_CIFSR: {
-            AT_PORT_SEND_BEGIN_AT();
-            AT_PORT_SEND_CONST_STR("+CIFSR");
             AT_PORT_SEND_END_AT();
             break;
         }
