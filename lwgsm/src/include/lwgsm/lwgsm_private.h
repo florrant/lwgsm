@@ -205,7 +205,11 @@ typedef enum {
     LWGSM_CMD_CUSD,     /*!< Unstructured Supplementary Service Data, Execute command */
     LWGSM_CMD_CSSN,     /*!< Supplementary Services Notification */
 
-    /* AT commands for TCP/IP stack */
+    /* AT commands for IP application */
+    LWGSM_CMD_CNACT, /*!< App Network Active */
+    LWGSM_CMD_CNCFG, /*!< PDP Configure */
+
+    /* AT commands for TCP/UDP application */
     LWGSM_CMD_CACID,    /*!< Set TCP/UDP identifier */
     LWGSM_CMD_CASSLCFG, /*!< Set SSL certificate and timeout parameters */
     LWGSM_CMD_CAOPEN,   /*!< Open a TCP/UDP connection */
@@ -215,6 +219,11 @@ typedef enum {
     LWGSM_CMD_CACLOSE,  /*!< Close TCP or UDP Connection  */
     LWGSM_CMD_CACFG,    /*!< Configure transparent transmission parameters*/
     LWGSM_CMD_CASWITCH, /*!< Switch to transparent transport mode */
+    LWGSM_CMD_CAACK,    /* FIXME: Not defined in the documentation but defined in application note */
+
+    /* AT commands for SSL function */
+    LWGSM_CMD_CSSLCFG_SET,
+    LWGSM_CMD_CSSLCFG_GET,
 
     /* AT commands according to 3GPP TS 27.005 */
     LWGSM_CMD_SMS_ENABLE,
@@ -291,6 +300,7 @@ typedef struct lwgsm_pbuf {
  * \brief           Incoming network data read structure
  */
 typedef struct {
+    uint8_t pre_read;  //XXX: Flag to initiate custom protocol read 7070
     uint8_t read;      /*!< Set to 1 when we should process input data as connection data */
     size_t tot_len;    /*!< Total length of packet */
     size_t rem_len;    /*!< Remaining bytes to read in current +IPD statement */
@@ -415,6 +425,11 @@ typedef struct lwgsm_msg {
         } conn_close;           /*!< Close connection */
 
         struct {
+            lwgsm_conn_t* conn; /*!< Pointer to connection to receive */
+            uint8_t val_id;     /*!< Connection current validation ID when command was sent to queue */
+        } conn_recv;            /*!< Close connection */
+
+        struct {
             lwgsm_conn_t* conn;          /*!< Pointer to connection to send data */
             size_t btw;                  /*!< Number of remaining bytes to write */
             size_t ptr;                  /*!< Current write pointer for data */
@@ -422,7 +437,7 @@ typedef struct lwgsm_msg {
             size_t sent;                 /*!< Number of bytes sent in last packet */
             size_t sent_all;             /*!< Number of bytes sent all together */
             uint8_t tries;               /*!< Number of tries used for last packet */
-            uint8_t wait_send_ok_err;    /*!< Set to 1 when we wait for SEND OK or SEND ERROR */
+            uint8_t wait_send_ready;     /*!< Wait answer from SIMCOM to continue send raw data*/
             const lwgsm_ip_t* remote_ip; /*!< Remote IP address for UDP connection */
             lwgsm_port_t remote_port;    /*!< Remote port address for UDP connection */
             uint8_t fau;                 /*!< Free after use flag to free memory after data are sent (or not) */
@@ -520,7 +535,12 @@ typedef struct lwgsm_msg {
             const char* pass; /*!< APN password */
         } network_attach;     /*!< Settings for network attach */
 #endif                        /* LWGSM_CFG_NETWORK || __DOXYGEN__ */
-    } msg;                    /*!< Group of different possible message contents */
+        //Generic internal command arg
+        struct {
+            uint16_t num1;
+            uint16_t num2;
+        } args; /*!< Settings for network attach */
+    } msg;      /*!< Group of different possible message contents */
 } lwgsm_msg_t;
 
 /**
@@ -878,6 +898,9 @@ void lwgsmi_send_string(const char* str, uint8_t e, uint8_t q, uint8_t c);
 void lwgsmi_send_ip_mac(const void* d, uint8_t is_ip, uint8_t q, uint8_t c);
 void lwgsmi_send_number(uint32_t num, uint8_t q, uint8_t c);
 void lwgsmi_send_port(lwgsm_port_t port, uint8_t q, uint8_t c);
+//
+void lwgsmi_send_signed_number(int32_t num, uint8_t q, uint8_t c);
+void lwgsmi_send_dev_memory(lwgsm_mem_t mem, uint8_t q, uint8_t c);
 
 //ip
 lwgsmr_t lwgsmi_process_sub_cmd_ip(lwgsm_msg_t* msg, uint8_t* is_ok, uint16_t* is_error);
@@ -885,6 +908,7 @@ lwgsmr_t lwgsmi_initiate_cmd_ip(lwgsm_msg_t* msg);
 void lwgsmi_process_events_for_timeout_or_error_ip(lwgsm_msg_t* msg, lwgsmr_t err);
 void lwgsmi_reset_everything_ip(uint8_t forced);
 void lwgsmi_parse_received_ip(lwgsm_recv_t* rcv, uint8_t* p_is_ok, uint16_t* p_is_error);
+void lwgsmi_process_ip(uint8_t ch, size_t d_len);
 
 /**
  * \}

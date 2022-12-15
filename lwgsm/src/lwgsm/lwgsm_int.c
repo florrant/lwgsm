@@ -397,9 +397,9 @@ lwgsmi_parse_received(lwgsm_recv_t* rcv) {
 
     /* Check OK response */
     is_ok = rcv->len == (2 + CRLF_LEN) && !strcmp(rcv->data, "OK" CRLF); /* Check if received string is OK */
-    if (!is_ok) {                                                        /* Check for SHUT OK string */
-        is_ok = rcv->len == (7 + CRLF_LEN) && !strcmp(rcv->data, "SEND OK" CRLF);
-    }
+    // if (!is_ok) {                                                        /* Check for SHUT OK string */
+    //     is_ok = rcv->len == (7 + CRLF_LEN) && !strcmp(rcv->data, "SEND OK" CRLF);
+    // }
 
     /* Check error response */
     if (!is_ok) {                                                                /* If still not ok, check if error? */
@@ -409,7 +409,7 @@ lwgsmi_parse_received(lwgsm_recv_t* rcv) {
             if (!is_error) {
                 is_error = !strcmp(rcv->data, "ERROR" CRLF) || !strcmp(rcv->data, "FAIL" CRLF);
                 if (!is_error) {
-                    is_ok = rcv->data[0] == 'S' && !strncmp(rcv->data, "SHUT OK" CRLF, 7 + CRLF_LEN ;
+                    is_ok = rcv->data[0] == 'S' && !strncmp(rcv->data, "SHUT OK" CRLF, 7 + CRLF_LEN);
                 }
             }
         }
@@ -425,6 +425,15 @@ lwgsmi_parse_received(lwgsm_recv_t* rcv) {
             lwgsmi_parse_csq(rcv->data); /* Parse +CSQ response */
 #if LWGSM_CFG_NETWORK
         } else if (!strncmp(rcv->data, "+PDP: DEACT", 11)) {
+            // if (!strncmp(rcv->data, "+APP PDP", 8)) {  //XXX: Add nex pdp information
+            //     /* Check if we have to update status for application */
+            //     if (lwgsm.m.network.is_attached != tmp_pdp_state) {
+            //         lwgsm.m.network.is_attached = tmp_pdp_state;
+
+            //         /* Notify upper layer */
+            //         lwgsmi_send_cb(lwgsm.m.network.is_attached ? LWGSM_EVT_NETWORK_ATTACHED : LWGSM_EVT_NETWORK_DETACHED);
+            //     }
+            // }
             /* PDP has been deactivated */
             lwgsm_network_check_status(NULL, NULL, 0);                              /* Update status */
 #endif                                                                              /* LWGSM_CFG_NETWORK */
@@ -666,9 +675,9 @@ lwgsmi_process(const void* data, size_t data_len) {
         ++d;            /* Go to next character, must be here as it is used later on */
         --d_len;        /* Decrease remaining length, must be here as it is decreased later too */
 
-        if (0) {
 #if LWGSM_CFG_CONN
-        } else if (lwgsm.m.ipd.read) { /* Read connection data */
+        //lwgsmi_process_ip(ch, d_len);
+        if (lwgsm.m.ipd.read) { /* Read connection data */
             size_t len;
 
             if (lwgsm.m.ipd.buff != NULL) {                           /* Do we have active buffer? */
@@ -752,7 +761,10 @@ lwgsmi_process(const void* data, size_t data_len) {
                 }
                 lwgsm.m.ipd.buff_ptr = 0; /* Reset input buffer pointer */
             }
+        }
 #endif /* LWGSM_CFG_CONN */
+
+        if (0) {
             /*
              * Check if operators scan command is active
              * and if we are ready to read the incoming data
@@ -838,10 +850,14 @@ lwgsmi_process(const void* data, size_t data_len) {
                         lwgsmi_parse_received(&recv_buff); /* Parse received string */
                         RECV_RESET();                      /* Reset received string */
                     }
+                    if ((ch == ',') && (lwgsm.m.ipd.pre_read)) { //XXX: 7070 recv protocol
+                        lwgsmi_parse_received(&recv_buff);       /* Parse received string */
+                        RECV_RESET();                            /* Reset received string */
+                    }
 
-#if LWGSM_CFG_CONN
+                    // #if LWGSM_CFG_CONN
                     /* Check if we have to read data */
-                    if (ch == '\n' && lwgsm.m.ipd.read) {
+                    if (ch == ',' && lwgsm.m.ipd.read)  {
                         size_t len;
                         LWGSM_DEBUGF(LWGSM_CFG_DBG_IPD | LWGSM_DBG_TYPE_TRACE,
                                      "[LWGSM IPD] Data on connection %d with total size %d byte(s)\r\n",
@@ -867,10 +883,9 @@ lwgsmi_process(const void* data, size_t data_len) {
                                          (int)lwgsm.m.ipd.conn->num, (int)len);
                         }
                         lwgsm.m.ipd.conn->status.f.data_received = 1; /* We have first received data */
-
-                        lwgsm.m.ipd.buff_ptr = 0; /* Reset buffer write pointer */
+                        lwgsm.m.ipd.buff_ptr = 0;                     /* Reset buffer write pointer */
                     }
-#endif /* LWGSM_CFG_CONN */
+                    // #endif /* LWGSM_CFG_CONN */
 
                     /*
                      * Do we have a special sequence "> "?
@@ -878,17 +893,19 @@ lwgsmi_process(const void* data, size_t data_len) {
                      * Check if any command active which may expect that kind of response
                      */
                     if (ch_prev2 == '\n' && ch_prev1 == '>' && ch == ' ') {
-                        if (0) {
-#if LWGSM_CFG_CONN
-                        } else if (CMD_IS_CUR(LWGSM_CMD_CIPSEND)) {
-                            RECV_RESET(); /* Reset received object */
+                        if (1) {
+                            lwgsmi_parse_received(&recv_buff);       /* Parse received string */
+                            RECV_RESET();                            /* Reset received string */
+// #if LWGSM_CFG_CONN //XXX
+//                         } else if (CMD_IS_CUR(LWGSM_CMD_CIPSEND)) {
+//                             RECV_RESET(); /* Reset received object */
 
-                            /* Now actually send the data prepared before */
-                            AT_PORT_SEND_WITH_FLUSH(&lwgsm.msg->msg.conn_send.data[lwgsm.msg->msg.conn_send.ptr],
-                                                    lwgsm.msg->msg.conn_send.sent);
-                            lwgsm.msg->msg.conn_send.wait_send_ok_err =
-                                1; /* Now we are waiting for "SEND OK" or "SEND ERROR" */
-#endif                             /* LWGSM_CFG_CONN */
+//                             /* Now actually send the data prepared before */
+//                             AT_PORT_SEND_WITH_FLUSH(&lwgsm.msg->msg.conn_send.data[lwgsm.msg->msg.conn_send.ptr],
+//                                                     lwgsm.msg->msg.conn_send.sent);
+//                             lwgsm.msg->msg.conn_send.wait_send_ok_err =
+//                                 1; /* Now we are waiting for "SEND OK" or "SEND ERROR" */
+// #endif                             /* LWGSM_CFG_CONN */
 #if LWGSM_CFG_SMS
                         } else if (CMD_IS_CUR(LWGSM_CMD_CMGS)) { /* Send SMS? */
                             AT_PORT_SEND(lwgsm.msg->msg.sms_send.text, strlen(lwgsm.msg->msg.sms_send.text));
@@ -1194,24 +1211,31 @@ lwgsmi_process_sub_cmd(lwgsm_msg_t* msg, uint8_t* is_ok, uint16_t* is_error) {
     } else if (CMD_IS_DEF(LWGSM_CMD_NETWORK_ATTACH)) {
         switch (msg->i) {
             case 0:
-                SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CGACT_SET_0);
+                SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CGATT_SET_1);
                 break;
             case 1:
                 SET_NEW_CMD(LWGSM_CMD_CGACT_SET_1);
                 break;
-#if LWGSM_CFG_NETWORK_IGNORE_CGACT_RESULT
+            // case 2:
+            //     SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CNACT);
+            //     msg->msg.args.num1 = 0;
+            //     msg->msg.args.num2 = 0;
+            //     break;
+            // #if LWGSM_CFG_NETWORK_IGNORE_CGACT_RESULT
+            //             case 2:
+            //                 SET_NEW_CMD(LWGSM_CMD_CGATT_SET_0);
+            //                 break;
+            // #else  /* LWGSM_CFG_NETWORK_IGNORE_CGACT_RESULT */
+            //             case 2:
+            //                 SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CGATT_SET_0);
+            //                 break;
+            // #endif /* !LWGSM_CFG_NETWORK_IGNORE_CGACT_RESULT */
             case 2:
-                SET_NEW_CMD(LWGSM_CMD_CGATT_SET_0);
+                SET_NEW_CMD(LWGSM_CMD_CNACT);
+                msg->msg.args.num1 = 0;
+                msg->msg.args.num2 = 1;
                 break;
-#else  /* LWGSM_CFG_NETWORK_IGNORE_CGACT_RESULT */
-            case 2:
-                SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CGATT_SET_0);
-                break;
-#endif /* !LWGSM_CFG_NETWORK_IGNORE_CGACT_RESULT */
-            case 3:
-                SET_NEW_CMD(LWGSM_CMD_CGATT_SET_1);
-                break;
-            // case 4:
+            // case 4:  //XXX
             //     SET_NEW_CMD_CHECK_ERROR(LWGSM_CMD_CIPSHUT);
             //     break;
             // case 5:
@@ -1243,11 +1267,11 @@ lwgsmi_process_sub_cmd(lwgsm_msg_t* msg, uint8_t* is_ok, uint16_t* is_error) {
             case 1:
                 SET_NEW_CMD(LWGSM_CMD_CGACT_SET_0);
                 break;
-// #if LWGSM_CFG_CONN
-//             case 2:
-//                 SET_NEW_CMD(LWGSM_CMD_CIPSTATUS);
-//                 break;
-// #endif /* LWGSM_CFG_CONN */
+                // #if LWGSM_CFG_CONN
+                //             case 2:
+                //                 SET_NEW_CMD(LWGSM_CMD_CIPSTATUS);
+                //                 break;
+                // #endif /* LWGSM_CFG_CONN */
             default:
                 break;
         }
@@ -1305,7 +1329,7 @@ lwgsmi_initiate_cmd(lwgsm_msg_t* msg) {
             if (lwgsm.ll.reset_fn != NULL && lwgsm.ll.reset_fn(1)) {
                 lwgsm_delay(2);
                 lwgsm.ll.reset_fn(0);
-                lwgsm_delay(500);
+                lwgsm_delay(1100); //XXX: SIM7070. Minimum wait 1 sec
             }
 
             /* Send manual AT command */
@@ -1679,7 +1703,16 @@ lwgsmi_initiate_cmd(lwgsm_msg_t* msg) {
         }
 #endif /* LWGSM_CFG_PHONEBOOK */
 #if LWGSM_CFG_NETWORK
-        case LWGSM_CMD_NETWORK_ATTACH:
+        //case LWGSM_CMD_NETWORK_ATTACH: //XXX: to remove
+        case LWGSM_CMD_CGDCONT: {
+            AT_PORT_SEND_BEGIN_AT();
+            AT_PORT_SEND_CONST_STR("+CGDCONT=");
+            lwgsmi_send_number(1, 0, 0);
+            lwgsmi_send_string("IP", 0, 1, 1);
+            lwgsmi_send_string(msg->msg.network_attach.apn, 1, 1, 1);
+            AT_PORT_SEND_END_AT();
+            break;
+        }
         case LWGSM_CMD_CGACT_SET_0: {
             AT_PORT_SEND_BEGIN_AT();
             AT_PORT_SEND_CONST_STR("+CGACT=0");
@@ -1688,7 +1721,7 @@ lwgsmi_initiate_cmd(lwgsm_msg_t* msg) {
         }
         case LWGSM_CMD_CGACT_SET_1: {
             AT_PORT_SEND_BEGIN_AT();
-            AT_PORT_SEND_CONST_STR("+CGACT=1");
+            AT_PORT_SEND_CONST_STR("+CGACT=1,1"); //XXX: Why need use 1
             AT_PORT_SEND_END_AT();
             break;
         }

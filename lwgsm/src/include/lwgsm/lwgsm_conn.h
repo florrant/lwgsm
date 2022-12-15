@@ -68,6 +68,8 @@ size_t lwgsm_conn_get_total_recved_count(lwgsm_conn_p conn);
 uint8_t lwgsm_conn_get_remote_ip(lwgsm_conn_p conn, lwgsm_ip_t* ip);
 lwgsm_port_t lwgsm_conn_get_remote_port(lwgsm_conn_p conn);
 lwgsm_port_t lwgsm_conn_get_local_port(lwgsm_conn_p conn);
+//
+uint8_t lwgsmi_conn_get_val_id(lwgsm_conn_p conn);
 
 /**
  * \}

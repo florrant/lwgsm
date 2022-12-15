@@ -54,6 +54,7 @@ lwgsm_network_attach(const char* apn, const char* user, const char* pass, const 
     LWGSM_MSG_VAR_ALLOC(msg, blocking);
     LWGSM_MSG_VAR_SET_EVT(msg, evt_fn, evt_arg);
     LWGSM_MSG_VAR_REF(msg).cmd_def = LWGSM_CMD_NETWORK_ATTACH;
+    LWGSM_MSG_VAR_REF(msg).cmd = LWGSM_CMD_CGDCONT;
     LWGSM_MSG_VAR_REF(msg).msg.network_attach.apn = apn;
     LWGSM_MSG_VAR_REF(msg).msg.network_attach.user = user;
     LWGSM_MSG_VAR_REF(msg).msg.network_attach.pass = pass;
